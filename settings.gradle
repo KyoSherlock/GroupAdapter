@@ -1,0 +1,1 @@
+include ':groupadapter-sample', ':groupadapter-library'

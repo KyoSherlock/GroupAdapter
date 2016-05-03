@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+	android:id="@+id/item_view"
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	android:layout_width="match_parent"
+	android:layout_height="48dp"
+	android:background="@color/md_red_A400"
+	android:clickable="true"
+	android:gravity="center_vertical"
+	android:orientation="horizontal"
+	android:paddingLeft="16dp"
+	android:paddingRight="16dp">
+
+	<TextView
+		style="@style/Base.TextAppearance.AppCompat.Body1"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:text="First Adapter Item: "
+		android:textColor="@android:color/white"/>
+
+	<TextView
+		android:id="@+id/text"
+		style="@style/Base.TextAppearance.AppCompat.Body1"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:textColor="@android:color/white"/>
+
+</LinearLayout>
