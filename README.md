@@ -1,7 +1,7 @@
 # GroupAdapter 
 
 A specialized RecyclerView.Adapter that presents data from a sequence of RecyclerView.Adapter. The sequence is static but each adapter can be presented in zero or more item views.
-The child adapter can use ViewType can be used safely.
+The child adapter can use ViewType safely.
 In addition, we can addHeaderView or addFooterView like ListView.
 
 # Usage
