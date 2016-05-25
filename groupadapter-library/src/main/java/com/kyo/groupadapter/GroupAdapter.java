@@ -1,3 +1,18 @@
+/**
+ * Copyright 2015, KyoSherlock
+ * <p/>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * <p/>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p/>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.kyo.groupadapter;
 
 import android.support.annotation.NonNull;
@@ -10,22 +25,27 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Created by jianghui on 4/29/16.
  */
+
 public class GroupAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
-	private static final String TAG = "GroupAdapter";
 
 	@NonNull
 	final RecyclerView.Adapter[] adapters;
 	final int adapterCount;
 	@NonNull
 	final int[] endPositions;
+	// view type
 	@NonNull
-	final Map<Integer, Integer>[] adapterViewTypeMaps; // adapter -> (viewType, generateViewType)
+	final Map<Integer, Integer>[] viewTypeToGenerateViewTypeMaps; // [(viewType, generate viewType),(viewType, generate viewType)]
 	@NonNull
-	final Map<Integer, ViewTypeInfo> viewTypeMaps; // (generateViewType , ViewTypeInfo)
+	final Map<Integer, ViewTypeInfo> generateViewTypeToViewTypeInfoMap; // (generate viewType , ViewTypeInfo(adapter position, viewType))
+	@NonNull
+	final Map<Long, Long>[] itemIdToGenerateItemIdMaps;  // [(itemId, generate itemId),(itemId, generate itemId)]
+
 
 	boolean dataInvalid = true;
 	int resolvedAdapterIndex;
@@ -39,13 +59,15 @@ public class GroupAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
 		this.adapters = builder.adapters.toArray(new RecyclerView.Adapter[builder.adapters.size()]);
 		this.adapterCount = count;
 		this.endPositions = new int[count];
-		this.adapterViewTypeMaps = new Map[count];
-		this.viewTypeMaps = new HashMap<>();
+		this.viewTypeToGenerateViewTypeMaps = new HashMap[count];
+		this.itemIdToGenerateItemIdMaps = new HashMap[count];
+		this.generateViewTypeToViewTypeInfoMap = new HashMap<>();
 		this.dataInvalid = true;
 
 		for (int i = 0; i < count; i++) {
 			adapters[i].registerAdapterDataObserver(new MyDataObserver(i));
-			adapterViewTypeMaps[i] = new HashMap<>();
+			viewTypeToGenerateViewTypeMaps[i] = new HashMap<>();
+			itemIdToGenerateItemIdMaps[i] = new HashMap<>();
 		}
 	}
 
@@ -85,7 +107,7 @@ public class GroupAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
 		int resolvedAdapterIndex = this.resolvedAdapterIndex;
 		int resolvedItemIndex = this.resolvedItemIndex;
 
-		Map<Integer, Integer> viewTypeMap = adapterViewTypeMaps[resolvedAdapterIndex];
+		Map<Integer, Integer> viewTypeMap = viewTypeToGenerateViewTypeMaps[resolvedAdapterIndex];
 		int viewType = adapters[resolvedAdapterIndex].getItemViewType(resolvedItemIndex);
 
 		if (viewTypeMap.containsKey(viewType)) {
@@ -93,7 +115,7 @@ public class GroupAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
 		} else {
 			int generateViewType = generateViewType();
 			viewTypeMap.put(viewType, generateViewType);
-			viewTypeMaps.put(generateViewType, new ViewTypeInfo(resolvedAdapterIndex, viewType));
+			generateViewTypeToViewTypeInfoMap.put(generateViewType, new ViewTypeInfo(resolvedAdapterIndex, viewType));
 			return generateViewType;
 		}
 	}
@@ -103,12 +125,25 @@ public class GroupAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
 		resolveIndices(position);
 		int resolvedAdapterIndex = this.resolvedAdapterIndex;
 		int resolvedItemIndex = this.resolvedItemIndex;
-		return adapters[resolvedAdapterIndex].getItemId(resolvedItemIndex);
+
+		Map<Long, Long> itemIdMap = itemIdToGenerateItemIdMaps[resolvedAdapterIndex];
+		long id = adapters[resolvedAdapterIndex].getItemId(resolvedItemIndex);
+		if (id == RecyclerView.NO_ID) {
+			return id;
+		} else {
+			if (itemIdMap.containsKey(id)) {
+				return itemIdMap.get(id);
+			} else {
+				long generateItemId = generateItemId();
+				itemIdMap.put(id, generateItemId);
+				return generateItemId;
+			}
+		}
 	}
 
 	@Override
 	public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
-		ViewTypeInfo viewTypeInfo = viewTypeMaps.get(viewType);
+		ViewTypeInfo viewTypeInfo = generateViewTypeToViewTypeInfoMap.get(viewType);
 		int resolvedAdapterIndex = viewTypeInfo.adapterPosition;
 		int resolvedViewType = viewTypeInfo.viewType;
 		return adapters[resolvedAdapterIndex].onCreateViewHolder(parent, resolvedViewType);
@@ -231,14 +266,27 @@ public class GroupAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
 		}
 	}
 
-	private static final AtomicInteger sNextGeneratedId = new AtomicInteger(1);
+	private static final AtomicInteger sNextGeneratedType = new AtomicInteger(1);
+	private static final AtomicLong sNextGeneratedId = new AtomicLong(1);
 
 	public static int generateViewType() {
 		for (; ; ) {
-			final int result = sNextGeneratedId.get();
+			final int result = sNextGeneratedType.get();
 			// aapt-generated IDs have the high byte nonzero; clamp to the range under that.
 			int newValue = result + 1;
-			if (newValue > 0x00FFFFFF) newValue = 1; // Roll over to 1, not 0.
+			if (newValue > Integer.MAX_VALUE) newValue = 1; // Roll over to 1, not 0.
+			if (sNextGeneratedType.compareAndSet(result, newValue)) {
+				return result;
+			}
+		}
+	}
+
+	public static long generateItemId() {
+		for (; ; ) {
+			final long result = sNextGeneratedId.get();
+			// aapt-generated IDs have the high byte nonzero; clamp to the range under that.
+			long newValue = result + 1;
+			if (newValue > Long.MAX_VALUE) newValue = 1; // Roll over to 1, not 0.
 			if (sNextGeneratedId.compareAndSet(result, newValue)) {
 				return result;
 			}
